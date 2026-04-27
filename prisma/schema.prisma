@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Festival {
+  id          String        @id @default(cuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  location    String
+  genre       String
+  imageUrl    String?
+  lineup      String?
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  performances Performance[]
+  
+  @@index([startDate, endDate])
+  @@index([genre])
+}
+
+model Performance {
+  id              String     @id @default(cuid())
+  festivalId      String
+  artistName      String
+  startTime       DateTime
+  endTime         DateTime
+  stage           String
+  durationMinutes Int
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  
+  festival        Festival   @relation(fields: [festivalId], references: [id], onDelete: Cascade)
+  userLogs        UserLog[]
+  
+  @@index([festivalId])
+  @@index([artistName])
+}
+
+model UserLog {
+  id            String      @id @default(cuid())
+  performanceId String
+  watchedAt     DateTime    @default(now())
+  isPartial     Boolean     @default(false)
+  actualMinutes Int?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  performance   Performance @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+  
+  @@index([performanceId])
+  @@index([watchedAt])
+}

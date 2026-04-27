@@ -26,6 +26,7 @@ const NOISE_PATTERNS: RegExp[] = [
   /^\d{4}$/,
   /^[\d./\-:]+$/,
   /^\d{1,2}\s*:\s*\d{2}$/,
+  /^\d+\s*min$/i,
 ]
 
 const META_KEYWORDS: RegExp[] = [

@@ -156,6 +156,7 @@ export async function POST(request: Request) {
       readingOrder,
       columnCount,
       notes: noteParts.length > 0 ? noteParts.join(' / ') : null,
+      annotation,
     })
   } catch (error) {
     console.error('Vision OCR error:', error)

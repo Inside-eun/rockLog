@@ -25,6 +25,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       width: 1000,
       height: 700,
       backgroundColor: '#f3f4f6',
+      uniformScaling: false,
     })
     fabricCanvasRef.current = canvas
 
@@ -83,7 +84,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
     setMode('crop')
   }
 
-  const applyCrop = () => {
+  const applyCrop = (afterApply?: () => void) => {
     if (!fabricCanvasRef.current || !cropRect || !originalImage) return
 
     const canvas = fabricCanvasRef.current
@@ -144,6 +145,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       canvas.renderAll()
       setOriginalImage(newImg)
       setMode(null)
+      afterApply?.()
     })
   }
 
@@ -157,8 +159,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       width: 150,
       height: 50,
       fill: '#ffffff',
-      stroke: '#666',
-      strokeWidth: 1,
+      stroke: null,
+      strokeWidth: 0,
       cornerColor: '#666',
       cornerSize: 8,
       transparentCorners: false,
@@ -172,12 +174,20 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
   const handleSave = () => {
     if (!fabricCanvasRef.current) return
 
-    fabricCanvasRef.current.discardActiveObject()
-    fabricCanvasRef.current.renderAll()
+    const doSave = () => {
+      if (!fabricCanvasRef.current) return
+      fabricCanvasRef.current.discardActiveObject()
+      fabricCanvasRef.current.renderAll()
+      fabricCanvasRef.current.getElement().toBlob((blob) => {
+        if (blob) onSave(blob)
+      }, 'image/png')
+    }
 
-    fabricCanvasRef.current.getElement().toBlob((blob) => {
-      if (blob) onSave(blob)
-    }, 'image/png')
+    if (cropRect && mode === 'crop') {
+      applyCrop(doSave)
+    } else {
+      doSave()
+    }
   }
 
   const deleteSelected = () => {
@@ -264,8 +274,8 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-sm">
           <strong>💡 사용 방법:</strong>
           <ul className="list-disc ml-5 mt-1 space-y-1">
-            <li><strong>크롭:</strong> "크롭 영역 선택" → 파란 박스 조절 → "크롭 적용"</li>
-            <li><strong>마스킹:</strong> "흰색 마스크 추가" → 흰 박스 위치/크기 조절 (여러 개 추가 가능)</li>
+            <li><strong>크롭:</strong> "크롭 영역 선택" → 파란 박스를 자유롭게 조절 → "크롭 적용" 또는 "편집 완료"</li>
+            <li><strong>마스킹:</strong> "흰색 마스크 추가" → 흰 박스 위치/크기 자유 조절 (여러 개 추가 가능)</li>
             <li><strong>삭제:</strong> 객체 선택 후 "선택 삭제"</li>
           </ul>
         </div>

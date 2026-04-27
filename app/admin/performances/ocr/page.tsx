@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { preprocessTimetableImage } from '@/lib/preprocess-image'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 
@@ -38,6 +39,7 @@ interface AnalyzeResponse {
   notes?: string | null
   rawText?: string
   unparsedLines?: string[]
+  annotation?: object
   error?: string
   details?: string
 }
@@ -78,10 +80,13 @@ export default function OCRPage() {
   const [file, setFile] = useState<File | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
+  const [cachedAnnotation, setCachedAnnotation] = useState<object | null>(null)
+  const [preprocess, setPreprocess] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [refining, setRefining] = useState(false)
   const [saving, setSaving] = useState(false)
   const [rows, setRows] = useState<ExtractedRow[]>([])
+  const [unparsedLines, setUnparsedLines] = useState<string[]>([])
   const [notes, setNotes] = useState('')
   const [rawText, setRawText] = useState('')
   const [error, setError] = useState('')
@@ -103,6 +108,7 @@ export default function OCRPage() {
 
   const handleFileChange = (f: File | null) => {
     setFile(f)
+    setCachedAnnotation(null)
     if (f) {
       const url = URL.createObjectURL(f)
       setPreviewUrl(url)
@@ -127,8 +133,15 @@ export default function OCRPage() {
     try {
       const formData = new FormData()
       if (selectedFestival) formData.append('festivalId', selectedFestival)
-      if (file) formData.append('image', file)
-      else if (imageUrl) formData.append('imageUrl', imageUrl)
+
+      if (file) {
+        const imageFile = engine === 'google' && preprocess
+          ? await preprocessTimetableImage(file).catch(() => file)
+          : file
+        formData.append('image', imageFile)
+      } else if (imageUrl) {
+        formData.append('imageUrl', imageUrl)
+      }
       if (engine === 'google') {
         formData.append('readingOrder', readingOrder)
         formData.append('columnCount', String(columnCount))
@@ -156,11 +169,65 @@ export default function OCRPage() {
       }))
 
       setRows(mapped)
+      setUnparsedLines(data.unparsedLines || [])
+      setNotes(data.notes || '')
+      setRawText(data.rawText || '')
+      if (engine === 'google' && data.annotation) {
+        setCachedAnnotation(data.annotation)
+      }
+
+      if (mapped.length === 0) {
+        setError('추출된 공연이 없습니다. 이미지를 확인하거나 다른 엔진을 시도해보세요.')
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '알 수 없는 오류')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const handleReorder = async () => {
+    if (!cachedAnnotation) return
+    setError('')
+    setAnalyzing(true)
+    setRows([])
+    setNotes('')
+    setRawText('')
+
+    try {
+      const res = await fetch('/api/admin/ocr-reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          annotation: cachedAnnotation,
+          readingOrder,
+          columnCount,
+          defaultDate,
+        }),
+      })
+
+      const data: AnalyzeResponse = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || '재정렬 실패')
+        return
+      }
+
+      const mapped: ExtractedRow[] = (data.performances || []).map((p) => ({
+        artistName: p.artistName || '',
+        startTime: p.startTime || '',
+        endTime: p.endTime || '',
+        stage: p.stage || 'Main Stage',
+        date: p.date || defaultDate,
+      }))
+
+      setRows(mapped)
+      setUnparsedLines(data.unparsedLines || [])
       setNotes(data.notes || '')
       setRawText(data.rawText || '')
 
       if (mapped.length === 0) {
-        setError('추출된 공연이 없습니다. 이미지를 확인하거나 다른 엔진을 시도해보세요.')
+        setError('재정렬 후 추출된 공연이 없습니다.')
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류')
@@ -204,6 +271,7 @@ export default function OCRPage() {
       }))
 
       setRows(mapped)
+      setUnparsedLines(data.unparsedLines || [])
       setNotes(data.notes || '')
 
       if (mapped.length === 0) {
@@ -426,6 +494,27 @@ export default function OCRPage() {
                 </p>
               </div>
             )}
+
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={preprocess}
+                onChange={(e) => setPreprocess(e.target.checked)}
+                className="rounded"
+              />
+              <span>자동 전처리 — 검은 여백 크롭 · 대비 강화 · 업스케일</span>
+            </label>
+
+            {cachedAnnotation && (
+              <button
+                type="button"
+                onClick={handleReorder}
+                disabled={analyzing}
+                className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {analyzing ? '재정렬 중...' : '♻️ 이 설정으로 재정렬 (Vision 재호출 없음 · 크레딧 0)'}
+              </button>
+            )}
           </div>
         )}
 
@@ -498,6 +587,7 @@ export default function OCRPage() {
                 setImageUrl(e.target.value)
                 setFile(null)
                 setPreviewUrl(e.target.value)
+                setCachedAnnotation(null)
               }}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-800"
               placeholder="https://example.com/timetable.jpg"
@@ -548,6 +638,8 @@ export default function OCRPage() {
             ? `${ENGINE_INFO[engine].label} 분석 중... (5~30초)`
             : !selectedFestival || !selectedDate
             ? '먼저 페스티벌과 날짜를 선택하세요'
+            : cachedAnnotation && engine === 'google'
+            ? `🔄 Vision 재분석 (크레딧 1회 추가 소모)`
             : `${ENGINE_INFO[engine].emoji} ${ENGINE_INFO[engine].label}로 분석 시작`}
         </button>
 
@@ -711,6 +803,45 @@ export default function OCRPage() {
                 </tbody>
               </table>
             </div>
+
+            {unparsedLines.length > 0 && (
+              <div className="border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/20">
+                <h3 className="font-semibold text-sm text-yellow-800 dark:text-yellow-200 mb-2">
+                  파싱 실패 줄 ({unparsedLines.length}개) — 아티스트 이름인지 확인 후 추가하세요
+                </h3>
+                <ul className="space-y-1">
+                  {unparsedLines.map((line, i) => {
+                    const cleaned = line.replace(/^\[시간 매칭 안 됨\]\s*/, '')
+                    return (
+                      <li key={i} className="flex items-center gap-2 text-sm">
+                        <code className="flex-1 bg-white dark:bg-gray-800 px-2 py-1 rounded border text-xs font-mono truncate">
+                          {cleaned}
+                        </code>
+                        <button
+                          onClick={() => {
+                            setRows((prev) => [
+                              ...prev,
+                              { artistName: cleaned, startTime: '', endTime: '', stage: 'Main Stage', date: defaultDate },
+                            ])
+                            setUnparsedLines((prev) => prev.filter((_, j) => j !== i))
+                          }}
+                          className="shrink-0 px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/50"
+                        >
+                          행 추가
+                        </button>
+                        <button
+                          onClick={() => setUnparsedLines((prev) => prev.filter((_, j) => j !== i))}
+                          className="shrink-0 text-gray-400 hover:text-red-500 px-1"
+                          title="무시"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
 
             <button
               onClick={handleSave}

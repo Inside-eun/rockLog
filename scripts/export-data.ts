@@ -1,34 +1,29 @@
 import { PrismaClient } from '@prisma/client'
-import * as fs from 'fs'
+import fs from 'fs'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: 'file:./prisma/dev.db',
+    },
+  },
+})
 
-async function exportData() {
-  console.log('데이터 내보내기 시작...')
-
+async function main() {
   const festivals = await prisma.festival.findMany({
     include: {
-      performances: true,
+      performances: {
+        include: {
+          userLogs: true,
+        },
+      },
     },
   })
 
-  const userLogs = await prisma.userLog.findMany()
-
-  const data = {
-    festivals,
-    userLogs,
-  }
-
-  fs.writeFileSync(
-    'prisma/exported-data.json',
-    JSON.stringify(data, null, 2)
-  )
-
-  console.log(`✓ ${festivals.length}개 페스티벌, ${festivals.reduce((sum, f) => sum + f.performances.length, 0)}개 공연 내보내기 완료`)
-  console.log(`✓ ${userLogs.length}개 사용자 로그 내보내기 완료`)
-  console.log('→ prisma/exported-data.json 저장됨')
+  fs.writeFileSync('data-export.json', JSON.stringify(festivals, null, 2))
+  console.log(`✅ Exported ${festivals.length} festivals to data-export.json`)
 }
 
-exportData()
+main()
   .catch(console.error)
   .finally(() => prisma.$disconnect())

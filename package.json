@@ -11,7 +11,8 @@
     "scrape": "tsx scripts/scrape-festivals.ts",
     "db:export": "tsx scripts/export-data.ts",
     "db:import": "tsx scripts/import-data.ts",
-    "vercel-build": "prisma generate && prisma migrate deploy && npm run db:import && next build"
+    "vercel-build": "prisma generate && next build",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

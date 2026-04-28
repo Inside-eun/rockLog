@@ -159,7 +159,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
       width: 150,
       height: 50,
       fill: '#ffffff',
-      stroke: null,
+      stroke: undefined,
       strokeWidth: 0,
       cornerColor: '#666',
       cornerSize: 8,
@@ -226,7 +226,7 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
 
           {cropRect && mode === 'crop' && (
             <button
-              onClick={applyCrop}
+              onClick={() => applyCrop()}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium"
             >
               ✓ 크롭 적용
@@ -274,9 +274,9 @@ export default function ImageEditor({ imageUrl, onSave, onCancel }: ImageEditorP
         <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 text-sm">
           <strong>💡 사용 방법:</strong>
           <ul className="list-disc ml-5 mt-1 space-y-1">
-            <li><strong>크롭:</strong> "크롭 영역 선택" → 파란 박스를 자유롭게 조절 → "크롭 적용" 또는 "편집 완료"</li>
-            <li><strong>마스킹:</strong> "흰색 마스크 추가" → 흰 박스 위치/크기 자유 조절 (여러 개 추가 가능)</li>
-            <li><strong>삭제:</strong> 객체 선택 후 "선택 삭제"</li>
+            <li><strong>크롭:</strong> &quot;크롭 영역 선택&quot; → 파란 박스를 자유롭게 조절 → &quot;크롭 적용&quot; 또는 &quot;편집 완료&quot;</li>
+            <li><strong>마스킹:</strong> &quot;흰색 마스크 추가&quot; → 흰 박스 위치/크기 자유 조절 (여러 개 추가 가능)</li>
+            <li><strong>삭제:</strong> 객체 선택 후 &quot;선택 삭제&quot;</li>
           </ul>
         </div>
       </div>

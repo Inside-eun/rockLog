@@ -34,7 +34,7 @@ export function StatsChart({ genreData, monthlyData }: StatsChartProps) {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={(entry) => `${entry.genre} (${entry.count})`}
+                label={(entry: any) => `${entry.genre} (${entry.count})`}
               >
                 {genreData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
